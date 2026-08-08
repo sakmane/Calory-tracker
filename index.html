@@ -268,6 +268,12 @@
       <input type="text" id="ouraClientIdInput" placeholder="Client ID from cloud.ouraring.com">
       <div class="hint">Create a free app at <a href="https://cloud.ouraring.com/oauth/applications" target="_blank">cloud.ouraring.com/oauth/applications</a>. Set its Redirect URI to exactly: <span class="mono" id="redirectUriDisplay" style="word-break:break-all;"></span></div>
     </div>
+
+    <div class="field">
+      <label>Oura Proxy URL (only if sync fails)</label>
+      <input type="text" id="ouraProxyInput" placeholder="https://oura-proxy.yourname.workers.dev">
+      <div class="hint">Leave blank to call Oura directly. If "Sync Oura data now" says "failed to fetch", paste your Cloudflare Worker URL here instead.</div>
+    </div>
     <button class="btn btn-oura" id="connectOuraBtn">Connect Oura</button>
     <button class="btn btn-secondary" id="syncOuraBtn">Sync Oura data now</button>
 
@@ -345,6 +351,11 @@
     return !!(s.ouraToken && s.ouraTokenExpiry && Date.now() < s.ouraTokenExpiry);
   }
 
+  function ouraBaseUrl(){
+    const s = getSettings();
+    return (s.ouraProxyUrl || 'https://api.ouraring.com').replace(/\/$/, '');
+  }
+
   async function syncOura(silent){
     const s = getSettings();
     if (!ouraTokenValid()){
@@ -364,7 +375,7 @@
       let nextToken = null;
       const days = getOuraDays();
       do{
-        let url = 'https://api.ouraring.com/v2/usercollection/daily_activity?start_date=' + startDate + '&end_date=' + endDate;
+        let url = ouraBaseUrl() + '/v2/usercollection/daily_activity?start_date=' + startDate + '&end_date=' + endDate;
         if (nextToken) url += '&next_token=' + encodeURIComponent(nextToken);
         const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + s.ouraToken } });
         if (!res.ok){
@@ -733,6 +744,7 @@
     const s = getSettings();
     document.getElementById('claudeKeyInput').value = s.claudeKey || '';
     document.getElementById('ouraClientIdInput').value = s.ouraClientId || '';
+    document.getElementById('ouraProxyInput').value = s.ouraProxyUrl || '';
     updateOuraStatus();
     modal.classList.add('open');
   }
@@ -755,6 +767,7 @@
     const s = getSettings();
     s.claudeKey = document.getElementById('claudeKeyInput').value.trim();
     s.ouraClientId = document.getElementById('ouraClientIdInput').value.trim();
+    s.ouraProxyUrl = document.getElementById('ouraProxyInput').value.trim();
     setSettings(s);
     toast('Settings saved');
     modal.classList.remove('open');
