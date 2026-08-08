@@ -277,6 +277,12 @@
     <button class="btn btn-oura" id="connectOuraBtn">Connect Oura</button>
     <button class="btn btn-secondary" id="syncOuraBtn">Sync Oura data now</button>
 
+    <div class="field" style="margin-top:18px;">
+      <label>Debug — last synced Oura days</label>
+      <div id="ouraDebugList" class="mono" style="font-size:12px; background:var(--surface2); border:1px solid var(--line); border-radius:10px; padding:10px; line-height:1.7;"></div>
+      <div class="hint">Today's local date on this phone: <span class="mono" id="localDateDisplay"></span>. Compare it to the dates listed above — if today's date isn't listed, Oura hasn't returned it yet; if it's listed with a calorie number, the app should be showing it.</div>
+    </div>
+
     <div style="margin-top:20px;">
       <button class="btn btn-primary" id="saveSettingsBtn">Save</button>
       <button class="btn btn-secondary" id="closeSettingsBtn">Close</button>
@@ -299,7 +305,11 @@
   const getOuraDays = () => JSON.parse(localStorage.getItem(OKEY) || '{}');
   const setOuraDays = (d) => localStorage.setItem(OKEY, JSON.stringify(d));
 
-  const todayISO = () => new Date().toISOString().slice(0,10);
+  const todayISO = () => {
+    const d = new Date();
+    const localMidnight = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+    return localMidnight.toISOString().slice(0,10);
+  };
   const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
   function toast(msg, isErr){
@@ -760,6 +770,25 @@
       dot.classList.remove('ok');
       txt.textContent = 'Oura not connected';
     }
+    renderOuraDebug();
+  }
+
+  function renderOuraDebug(){
+    const el = document.getElementById('ouraDebugList');
+    const localEl = document.getElementById('localDateDisplay');
+    if (!el) return;
+    localEl.textContent = todayISO();
+    const days = getOuraDays();
+    const dates = Object.keys(days).sort().reverse().slice(0, 6);
+    if (dates.length === 0){
+      el.innerHTML = '<span class="muted">No Oura data synced yet.</span>';
+      return;
+    }
+    el.innerHTML = dates.map(d => {
+      const rec = days[d];
+      const mark = d === todayISO() ? ' ←today' : '';
+      return d + ': total=' + (rec.total_calories ?? '—') + ' active=' + (rec.active_calories ?? '—') + mark;
+    }).join('<br>');
   }
   document.getElementById('settingsBtn').addEventListener('click', openSettings);
   document.getElementById('closeSettingsBtn').addEventListener('click', () => modal.classList.remove('open'));
