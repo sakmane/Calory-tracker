@@ -116,8 +116,8 @@
   }
   .period-tab.active{background:var(--surface2); color:var(--ink); border-color:var(--intake);}
 
-  /* ---- Floating log button ---- */
-  .fab-wrap{position:fixed; bottom:calc(86px + env(safe-area-inset-bottom)); left:0; right:0; display:flex; justify-content:center; pointer-events:none;}
+  /* ---- Floating log buttons ---- */
+  .fab-wrap{position:fixed; bottom:calc(86px + env(safe-area-inset-bottom)); left:0; right:0; display:flex; justify-content:center; gap:10px; pointer-events:none;}
   .fab{
     pointer-events:auto;
     background:linear-gradient(135deg, var(--intake), #c77f2a);
@@ -125,6 +125,13 @@
     padding:14px 26px; font-size:15px; font-weight:600; font-family:'Space Grotesk',sans-serif;
     display:flex; align-items:center; gap:8px;
     box-shadow:0 8px 22px rgba(226,160,63,.35);
+  }
+  .fab-secondary{
+    pointer-events:auto;
+    background:var(--surface2); color:var(--ink); border:1px solid var(--line);
+    border-radius:50%; width:50px; height:50px; font-size:19px;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 6px 16px rgba(0,0,0,.35);
   }
 
   /* ---- Tab bar ---- */
@@ -233,8 +240,10 @@
 
 <div class="fab-wrap">
   <button class="fab" id="logBtn">📷 Log a meal</button>
+  <button class="fab-secondary" id="galleryBtn" title="Choose from gallery">🖼️</button>
 </div>
 <input type="file" id="fileInput" accept="image/*" capture="environment">
+<input type="file" id="fileInputGallery" accept="image/*">
 
 <div class="tabbar">
   <button class="tab active" data-view="today"><span class="ico">◎</span>Today</button>
@@ -260,6 +269,7 @@
       <div class="hint">Create a free app at <a href="https://cloud.ouraring.com/oauth/applications" target="_blank">cloud.ouraring.com/oauth/applications</a>. Set its Redirect URI to exactly: <span class="mono" id="redirectUriDisplay" style="word-break:break-all;"></span></div>
     </div>
     <button class="btn btn-oura" id="connectOuraBtn">Connect Oura</button>
+    <button class="btn btn-secondary" id="syncOuraBtn">Sync Oura data now</button>
 
     <div style="margin-top:20px;">
       <button class="btn btn-primary" id="saveSettingsBtn">Save</button>
@@ -369,8 +379,10 @@
       } while(nextToken);
       setOuraDays(days);
       renderAll();
+      if (!silent) toast('Oura data synced');
     }catch(e){
-      if (!silent) toast('Could not reach Oura: ' + e.message, true);
+      console.error('Oura sync failed', e);
+      toast('Could not reach Oura: ' + e.message, true);
     }
   }
 
@@ -432,10 +444,11 @@
   document.getElementById('logBtn').addEventListener('click', () => {
     document.getElementById('fileInput').click();
   });
+  document.getElementById('galleryBtn').addEventListener('click', () => {
+    document.getElementById('fileInputGallery').click();
+  });
 
-  document.getElementById('fileInput').addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    e.target.value = '';
+  function handlePhotoFile(file){
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async () => {
@@ -468,6 +481,17 @@
       }
     };
     reader.readAsDataURL(file);
+  }
+
+  document.getElementById('fileInput').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    handlePhotoFile(file);
+  });
+  document.getElementById('fileInputGallery').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    handlePhotoFile(file);
   });
 
   function showLoadingRow(on){
@@ -736,6 +760,7 @@
     modal.classList.remove('open');
   });
   document.getElementById('connectOuraBtn').addEventListener('click', connectOura);
+  document.getElementById('syncOuraBtn').addEventListener('click', () => syncOura(false));
 
   /* ---------------- init ---------------- */
   function renderAll(){
