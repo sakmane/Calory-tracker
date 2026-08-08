@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#10141b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Balance">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>Balance — Energy Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0f131a;
+    --surface:#171d26;
+    --surface2:#1f2731;
+    --line:#2a323d;
+    --ink:#eef0f0;
+    --muted:#8b93a1;
+    --intake:#e2a03f;
+    --intake-dim:rgba(226,160,63,.16);
+    --expend:#4fb1a3;
+    --expend-dim:rgba(79,177,163,.16);
+    --danger:#e2603f;
+    --radius:16px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:'Inter',sans-serif;
+    padding-bottom:calc(78px + env(safe-area-inset-bottom));
+    padding-top:env(safe-area-inset-top);
+    overscroll-behavior-y:none;
+  }
+  h1,h2,h3,.display{font-family:'Space Grotesk',sans-serif; font-weight:600; margin:0;}
+  .mono{font-family:'Space Mono',monospace;}
+  .muted{color:var(--muted);}
+  button{font-family:inherit; cursor:pointer;}
+
+  /* ---- Top bar ---- */
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 20px 8px;
+  }
+  .topbar h1{font-size:20px; letter-spacing:.2px;}
+  .icon-btn{
+    background:var(--surface); border:1px solid var(--line); color:var(--ink);
+    width:38px; height:38px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; font-size:16px;
+  }
+
+  /* ---- Views ---- */
+  .view{padding:8px 20px 24px; display:none;}
+  .view.active{display:block;}
+  .card{
+    background:var(--surface); border:1px solid var(--line);
+    border-radius:var(--radius); padding:18px;
+  }
+
+  /* ---- Ring gauge ---- */
+  .ring-wrap{display:flex; flex-direction:column; align-items:center; padding:18px 0 8px;}
+  .ring-center{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    text-align:center;
+  }
+  .ring-net{font-family:'Space Mono',monospace; font-size:34px; font-weight:700;}
+  .ring-label{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1.2px; margin-top:2px;}
+  .ring-legend{display:flex; gap:22px; margin-top:14px;}
+  .legend-item{display:flex; align-items:center; gap:7px; font-size:13px;}
+  .legend-item .val{font-family:'Space Mono',monospace; font-weight:700; margin-left:2px;}
+  .dot{width:9px; height:9px; border-radius:50%;}
+  .dot.intake{background:var(--intake);}
+  .dot.expend{background:var(--expend);}
+
+  /* ---- Meal list ---- */
+  .section-title{font-size:13px; text-transform:uppercase; letter-spacing:1.2px; color:var(--muted); margin:22px 2px 10px;}
+  .meal-row{
+    display:flex; align-items:center; gap:12px;
+    background:var(--surface); border:1px solid var(--line);
+    border-radius:12px; padding:10px; margin-bottom:10px;
+  }
+  .meal-thumb{width:52px; height:52px; border-radius:9px; object-fit:cover; background:var(--surface2); flex-shrink:0;}
+  .meal-info{flex:1; min-width:0;}
+  .meal-name{font-size:14px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .meal-sub{font-size:12px; color:var(--muted); margin-top:2px;}
+  .meal-cal{font-family:'Space Mono',monospace; font-weight:700; font-size:15px; color:var(--intake); flex-shrink:0;}
+  .meal-del{background:none; border:none; color:var(--muted); font-size:18px; padding:4px 6px; flex-shrink:0;}
+  .empty{color:var(--muted); font-size:14px; text-align:center; padding:26px 10px;}
+
+  /* ---- Day rows (history) ---- */
+  .day-row{
+    background:var(--surface); border:1px solid var(--line); border-radius:12px;
+    padding:14px; margin-bottom:10px;
+  }
+  .day-head{display:flex; justify-content:space-between; align-items:center; cursor:pointer;}
+  .day-date{font-weight:600; font-size:14px;}
+  .day-nums{display:flex; gap:14px; font-family:'Space Mono',monospace; font-size:13px;}
+  .day-meals{margin-top:12px; display:none;}
+  .day-meals.open{display:block;}
+
+  /* ---- Trends bars ---- */
+  .bar-row{margin-bottom:16px;}
+  .bar-row-head{display:flex; justify-content:space-between; font-size:13px; margin-bottom:6px;}
+  .bar-row-head .lbl{font-weight:600;}
+  .bar-track{height:9px; background:var(--surface2); border-radius:5px; overflow:hidden; display:flex; margin-bottom:4px;}
+  .bar-fill{height:100%;}
+  .bar-nums{display:flex; justify-content:space-between; font-size:11px; color:var(--muted); font-family:'Space Mono',monospace;}
+  .period-tabs{display:flex; gap:8px; margin-bottom:18px;}
+  .period-tab{
+    flex:1; padding:9px 0; text-align:center; border-radius:10px; font-size:13px;
+    background:var(--surface); border:1px solid var(--line); color:var(--muted);
+  }
+  .period-tab.active{background:var(--surface2); color:var(--ink); border-color:var(--intake);}
+
+  /* ---- Floating log button ---- */
+  .fab-wrap{position:fixed; bottom:calc(86px + env(safe-area-inset-bottom)); left:0; right:0; display:flex; justify-content:center; pointer-events:none;}
+  .fab{
+    pointer-events:auto;
+    background:linear-gradient(135deg, var(--intake), #c77f2a);
+    color:#1a1206; border:none; border-radius:50px;
+    padding:14px 26px; font-size:15px; font-weight:600; font-family:'Space Grotesk',sans-serif;
+    display:flex; align-items:center; gap:8px;
+    box-shadow:0 8px 22px rgba(226,160,63,.35);
+  }
+
+  /* ---- Tab bar ---- */
+  .tabbar{
+    position:fixed; bottom:0; left:0; right:0; display:flex;
+    background:var(--surface); border-top:1px solid var(--line);
+    padding:8px 6px calc(8px + env(safe-area-inset-bottom));
+  }
+  .tab{
+    flex:1; background:none; border:none; color:var(--muted);
+    display:flex; flex-direction:column; align-items:center; gap:3px; font-size:11px; padding:6px 0;
+  }
+  .tab.active{color:var(--intake);}
+  .tab .ico{font-size:19px;}
+
+  /* ---- Modal ---- */
+  .modal-bg{
+    position:fixed; inset:0; background:rgba(8,10,14,.72); display:none;
+    align-items:flex-end; z-index:50;
+  }
+  .modal-bg.open{display:flex;}
+  .modal{
+    background:var(--surface); width:100%; border-radius:20px 20px 0 0;
+    padding:22px 20px calc(26px + env(safe-area-inset-bottom));
+    max-height:88vh; overflow-y:auto;
+  }
+  .modal h2{font-size:18px; margin-bottom:16px;}
+  .field{margin-bottom:16px;}
+  .field label{display:block; font-size:12px; color:var(--muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:.8px;}
+  .field input{
+    width:100%; background:var(--surface2); border:1px solid var(--line); color:var(--ink);
+    border-radius:10px; padding:12px 13px; font-size:14px; font-family:'Space Mono',monospace;
+  }
+  .field .hint{font-size:11.5px; color:var(--muted); margin-top:6px; line-height:1.5;}
+  .field .hint a{color:var(--expend);}
+  .btn{
+    width:100%; padding:13px; border-radius:12px; border:none; font-size:14px; font-weight:600;
+    font-family:'Space Grotesk',sans-serif;
+  }
+  .btn-primary{background:var(--intake); color:#1a1206;}
+  .btn-secondary{background:var(--surface2); color:var(--ink); border:1px solid var(--line);}
+  .btn-oura{background:var(--expend); color:#08201c;}
+  .btn + .btn{margin-top:10px;}
+  .conn-status{display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:12px;}
+  .conn-dot{width:8px; height:8px; border-radius:50%; background:var(--danger);}
+  .conn-dot.ok{background:var(--expend);}
+
+  /* ---- Toast ---- */
+  .toast{
+    position:fixed; top:calc(14px + env(safe-area-inset-top)); left:20px; right:20px;
+    background:var(--surface2); border:1px solid var(--line); color:var(--ink);
+    padding:12px 16px; border-radius:12px; font-size:13.5px; z-index:80;
+    transform:translateY(-120%); transition:transform .25s ease; box-shadow:0 6px 18px rgba(0,0,0,.35);
+  }
+  .toast.show{transform:translateY(0);}
+  .toast.err{border-color:var(--danger); color:#ffb3a0;}
+
+  .loading-row{display:flex; align-items:center; gap:10px; padding:14px; color:var(--muted); font-size:13.5px;}
+  .spinner{
+    width:16px; height:16px; border-radius:50%; border:2px solid var(--line); border-top-color:var(--intake);
+    animation:spin .7s linear infinite; flex-shrink:0;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+  #fileInput{display:none;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>Balance</h1>
+  <button class="icon-btn" id="settingsBtn">⚙</button>
+</div>
+
+<!-- TODAY -->
+<div class="view active" id="view-today">
+  <div class="card" style="position:relative;">
+    <svg id="ringSvg" viewBox="0 0 200 200" style="width:210px; height:210px; display:block; margin:0 auto;"></svg>
+    <div class="ring-center">
+      <div class="ring-net mono" id="ringNet">0</div>
+      <div class="ring-label" id="ringNetLabel">net kcal</div>
+    </div>
+    <div class="ring-legend" style="justify-content:center;">
+      <div class="legend-item"><span class="dot intake"></span>In <span class="val mono" id="inVal">0</span></div>
+      <div class="legend-item"><span class="dot expend"></span>Out <span class="val mono" id="outVal">—</span></div>
+    </div>
+  </div>
+
+  <div class="section-title">Today's meals</div>
+  <div id="mealList"></div>
+</div>
+
+<!-- HISTORY -->
+<div class="view" id="view-history">
+  <div id="historyList"></div>
+</div>
+
+<!-- TRENDS -->
+<div class="view" id="view-trends">
+  <div class="period-tabs">
+    <button class="period-tab active" data-period="week">Weekly</button>
+    <button class="period-tab" data-period="month">Monthly</button>
+    <button class="period-tab" data-period="year">Yearly</button>
+  </div>
+  <div id="trendsBody"></div>
+</div>
+
+<div class="fab-wrap">
+  <button class="fab" id="logBtn">📷 Log a meal</button>
+</div>
+<input type="file" id="fileInput" accept="image/*" capture="environment">
+
+<div class="tabbar">
+  <button class="tab active" data-view="today"><span class="ico">◎</span>Today</button>
+  <button class="tab" data-view="history"><span class="ico">▤</span>History</button>
+  <button class="tab" data-view="trends"><span class="ico">◈</span>Trends</button>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="modal-bg" id="settingsModal">
+  <div class="modal">
+    <h2>Settings</h2>
+
+    <div class="field">
+      <label>Claude API key</label>
+      <input type="password" id="claudeKeyInput" placeholder="sk-ant-...">
+      <div class="hint">From <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> → API Keys. Used only from your phone to estimate calories from photos.</div>
+    </div>
+
+    <div class="conn-status"><span class="conn-dot" id="ouraDot"></span><span id="ouraStatusText">Oura not connected</span></div>
+    <div class="field">
+      <label>Oura Client ID</label>
+      <input type="text" id="ouraClientIdInput" placeholder="Client ID from cloud.ouraring.com">
+      <div class="hint">Create a free app at <a href="https://cloud.ouraring.com/oauth/applications" target="_blank">cloud.ouraring.com/oauth/applications</a>. Set its Redirect URI to exactly: <span class="mono" id="redirectUriDisplay" style="word-break:break-all;"></span></div>
+    </div>
+    <button class="btn btn-oura" id="connectOuraBtn">Connect Oura</button>
+
+    <div style="margin-top:20px;">
+      <button class="btn btn-primary" id="saveSettingsBtn">Save</button>
+      <button class="btn btn-secondary" id="closeSettingsBtn">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------- storage ---------------- */
+  const SKEY = 'bal_settings', MKEY = 'bal_meals', OKEY = 'bal_oura_days';
+  const getSettings = () => JSON.parse(localStorage.getItem(SKEY) || '{}');
+  const setSettings = (s) => localStorage.setItem(SKEY, JSON.stringify(s));
+  const getMeals = () => JSON.parse(localStorage.getItem(MKEY) || '[]');
+  const setMeals = (m) => localStorage.setItem(MKEY, JSON.stringify(m));
+  const getOuraDays = () => JSON.parse(localStorage.getItem(OKEY) || '{}');
+  const setOuraDays = (d) => localStorage.setItem(OKEY, JSON.stringify(d));
+
+  const todayISO = () => new Date().toISOString().slice(0,10);
+  const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+  function toast(msg, isErr){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (isErr ? ' err' : '');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => t.classList.remove('show'), 3600);
+  }
+
+  /* ---------------- OAuth (Oura client-side flow) ---------------- */
+  function redirectUri(){
+    return location.origin + location.pathname;
+  }
+  document.getElementById('redirectUriDisplay').textContent = redirectUri();
+
+  function handleOuraRedirect(){
+    if (!location.hash || location.hash.indexOf('access_token') === -1) return;
+    const params = new URLSearchParams(location.hash.slice(1));
+    const token = params.get('access_token');
+    const expiresIn = parseInt(params.get('expires_in') || '0', 10);
+    if (token) {
+      const s = getSettings();
+      s.ouraToken = token;
+      s.ouraTokenExpiry = Date.now() + expiresIn * 1000;
+      setSettings(s);
+      toast('Oura connected');
+    }
+    history.replaceState(null, '', location.pathname);
+  }
+
+  function connectOura(){
+    const s = getSettings();
+    const clientId = document.getElementById('ouraClientIdInput').value.trim() || s.ouraClientId;
+    if (!clientId){ toast('Enter your Oura Client ID first', true); return; }
+    s.ouraClientId = clientId;
+    setSettings(s);
+    const state = uid();
+    const url = 'https://cloud.ouraring.com/oauth/authorize?response_type=token'
+      + '&client_id=' + encodeURIComponent(clientId)
+      + '&redirect_uri=' + encodeURIComponent(redirectUri())
+      + '&scope=' + encodeURIComponent('daily')
+      + '&state=' + state;
+    location.href = url;
+  }
+
+  function ouraTokenValid(){
+    const s = getSettings();
+    return !!(s.ouraToken && s.ouraTokenExpiry && Date.now() < s.ouraTokenExpiry);
+  }
+
+  async function syncOura(silent){
+    const s = getSettings();
+    if (!ouraTokenValid()){
+      if (!silent) toast('Connect Oura in Settings first', true);
+      return;
+    }
+    const meals = getMeals();
+    let earliest = todayISO();
+    meals.forEach(m => { if (m.date < earliest) earliest = m.date; });
+    // default to at least 400 days back so yearly trends have data
+    const minDate = new Date();
+    minDate.setDate(minDate.getDate() - 400);
+    const startDate = (earliest < minDate.toISOString().slice(0,10)) ? earliest : minDate.toISOString().slice(0,10);
+    const endDate = todayISO();
+
+    try{
+      let nextToken = null;
+      const days = getOuraDays();
+      do{
+        let url = 'https://api.ouraring.com/v2/usercollection/daily_activity?start_date=' + startDate + '&end_date=' + endDate;
+        if (nextToken) url += '&next_token=' + encodeURIComponent(nextToken);
+        const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + s.ouraToken } });
+        if (!res.ok){
+          if (res.status === 401){ toast('Oura session expired — reconnect in Settings', true); }
+          break;
+        }
+        const data = await res.json();
+        (data.data || []).forEach(d => {
+          days[d.day] = { total_calories: d.total_calories, active_calories: d.active_calories };
+        });
+        nextToken = data.next_token || null;
+      } while(nextToken);
+      setOuraDays(days);
+      renderAll();
+    }catch(e){
+      if (!silent) toast('Could not reach Oura: ' + e.message, true);
+    }
+  }
+
+  /* ---------------- Claude vision call ---------------- */
+  async function estimateFromPhoto(base64Jpeg){
+    const s = getSettings();
+    if (!s.claudeKey){ throw new Error('Add your Claude API key in Settings first'); }
+    const prompt = 'You are a nutrition estimation assistant. Look at this photo of a meal and estimate its nutritional content based on typical portion sizes visible. Respond with ONLY valid JSON, no markdown, no code fences, in exactly this shape: {"items":[{"name":string,"calories":number}],"total_calories":number,"protein_g":number,"carbs_g":number,"fat_g":number,"confidence":"low"|"medium"|"high"}';
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': s.claudeKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-5',
+        max_tokens: 1024,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64Jpeg } },
+            { type: 'text', text: prompt }
+          ]
+        }]
+      })
+    });
+    if (!res.ok){
+      const errBody = await res.text();
+      throw new Error('Claude API error (' + res.status + ')');
+    }
+    const data = await res.json();
+    const textBlock = (data.content || []).find(b => b.type === 'text');
+    if (!textBlock) throw new Error('No response from Claude');
+    let raw = textBlock.text.trim();
+    raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/,'').replace(/```\s*$/,'');
+    return JSON.parse(raw);
+  }
+
+  /* ---------------- image handling ---------------- */
+  function resizeImage(dataUrl, maxDim, quality){
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        if (w > h && w > maxDim){ h = Math.round(h * maxDim / w); w = maxDim; }
+        else if (h > maxDim){ w = Math.round(w * maxDim / h); h = maxDim; }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = dataUrl;
+    });
+  }
+
+  document.getElementById('logBtn').addEventListener('click', () => {
+    document.getElementById('fileInput').click();
+  });
+
+  document.getElementById('fileInput').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      showLoadingRow(true);
+      try{
+        const fullDataUrl = await resizeImage(reader.result, 1024, 0.72);
+        const thumbDataUrl = await resizeImage(reader.result, 140, 0.55);
+        const base64 = fullDataUrl.split(',')[1];
+        const result = await estimateFromPhoto(base64);
+        const meals = getMeals();
+        meals.push({
+          id: uid(),
+          date: todayISO(),
+          time: new Date().toISOString(),
+          thumb: thumbDataUrl,
+          items: result.items || [],
+          calories: Math.round(result.total_calories || 0),
+          protein: result.protein_g || 0,
+          carbs: result.carbs_g || 0,
+          fat: result.fat_g || 0,
+          confidence: result.confidence || 'medium'
+        });
+        setMeals(meals);
+        toast('Meal logged: ' + Math.round(result.total_calories||0) + ' kcal');
+        renderAll();
+      }catch(err){
+        toast(err.message || 'Could not estimate calories', true);
+      }finally{
+        showLoadingRow(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+
+  function showLoadingRow(on){
+    let el = document.getElementById('loadingRow');
+    if (on){
+      if (!el){
+        el = document.createElement('div');
+        el.id = 'loadingRow';
+        el.className = 'loading-row';
+        el.innerHTML = '<span class="spinner"></span><span>Estimating calories from photo…</span>';
+        document.getElementById('mealList').prepend(el);
+      }
+    } else if (el){
+      el.remove();
+    }
+  }
+
+  /* ---------------- delete meal ---------------- */
+  function deleteMeal(id){
+    setMeals(getMeals().filter(m => m.id !== id));
+    renderAll();
+  }
+
+  /* ---------------- ring gauge ---------------- */
+  function renderRing(intake, expend){
+    const svg = document.getElementById('ringSvg');
+    const r = 82, cx = 100, cy = 100, stroke = 16;
+    const circ = 2 * Math.PI * r;
+    const total = intake + expend;
+    const intakeFrac = total > 0 ? intake / total : 0.5;
+    const gap = total > 0 ? 6 : 0; // degrees gap between arcs
+    const intakeDeg = total > 0 ? (360 - gap*2) * intakeFrac : 174;
+    const expendDeg = total > 0 ? (360 - gap*2) - intakeDeg : 174;
+
+    function arcPath(startDeg, sweepDeg, radius){
+      const s = (startDeg - 90) * Math.PI/180;
+      const e = (startDeg + sweepDeg - 90) * Math.PI/180;
+      const x1 = cx + radius*Math.cos(s), y1 = cy + radius*Math.sin(s);
+      const x2 = cx + radius*Math.cos(e), y2 = cy + radius*Math.sin(e);
+      const large = sweepDeg > 180 ? 1 : 0;
+      return 'M ' + x1 + ' ' + y1 + ' A ' + radius + ' ' + radius + ' 0 ' + large + ' 1 ' + x2 + ' ' + y2;
+    }
+
+    svg.innerHTML =
+      '<circle cx="100" cy="100" r="' + r + '" fill="none" stroke="#232b36" stroke-width="' + stroke + '"/>' +
+      '<path d="' + arcPath(0, intakeDeg, r) + '" fill="none" stroke="#e2a03f" stroke-width="' + stroke + '" stroke-linecap="round"/>' +
+      '<path d="' + arcPath(intakeDeg + gap, expendDeg, r) + '" fill="none" stroke="#4fb1a3" stroke-width="' + stroke + '" stroke-linecap="round"/>';
+
+    const net = intake - expend;
+    const netEl = document.getElementById('ringNet');
+    const labelEl = document.getElementById('ringNetLabel');
+    netEl.textContent = (net > 0 ? '+' : '') + Math.round(net);
+    netEl.style.color = expend === 0 ? '#eef0f0' : (net > 0 ? 'var(--intake)' : 'var(--expend)');
+    labelEl.textContent = expend === 0 ? 'log Oura data →' : 'net kcal';
+
+    document.getElementById('inVal').textContent = Math.round(intake);
+    document.getElementById('outVal').textContent = expend ? Math.round(expend) : '—';
+  }
+
+  /* ---------------- today view ---------------- */
+  function renderToday(){
+    const meals = getMeals().filter(m => m.date === todayISO());
+    const days = getOuraDays();
+    const intake = meals.reduce((a,m) => a + m.calories, 0);
+    const expend = days[todayISO()] ? days[todayISO()].total_calories : 0;
+    renderRing(intake, expend);
+
+    const list = document.getElementById('mealList');
+    if (meals.length === 0){
+      list.innerHTML = '<div class="empty">No meals logged today yet.<br>Tap "Log a meal" to snap a photo.</div>';
+      return;
+    }
+    list.innerHTML = meals.slice().reverse().map(m => mealRowHtml(m)).join('');
+    list.querySelectorAll('[data-del]').forEach(btn => {
+      btn.addEventListener('click', () => deleteMeal(btn.getAttribute('data-del')));
+    });
+  }
+
+  function mealRowHtml(m){
+    const time = new Date(m.time).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+    const names = (m.items||[]).map(i=>i.name).join(', ') || 'Meal';
+    return '<div class="meal-row">' +
+      '<img class="meal-thumb" src="' + m.thumb + '">' +
+      '<div class="meal-info"><div class="meal-name">' + escapeHtml(names) + '</div>' +
+      '<div class="meal-sub">' + time + ' · ' + m.confidence + ' confidence</div></div>' +
+      '<div class="meal-cal mono">' + m.calories + '</div>' +
+      '<button class="meal-del" data-del="' + m.id + '">✕</button>' +
+      '</div>';
+  }
+
+  function escapeHtml(s){
+    return (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  }
+
+  /* ---------------- history view ---------------- */
+  function renderHistory(){
+    const meals = getMeals();
+    const days = getOuraDays();
+    const byDate = {};
+    meals.forEach(m => { (byDate[m.date] = byDate[m.date] || []).push(m); });
+    Object.keys(days).forEach(d => { if (!byDate[d]) byDate[d] = []; });
+
+    const dates = Object.keys(byDate).sort().reverse();
+    const el = document.getElementById('historyList');
+    if (dates.length === 0){
+      el.innerHTML = '<div class="empty">No history yet. Log a meal or connect Oura to get started.</div>';
+      return;
+    }
+    el.innerHTML = dates.map(date => {
+      const dayMeals = byDate[date].slice().sort((a,b)=>a.time.localeCompare(b.time));
+      const intake = dayMeals.reduce((a,m)=>a+m.calories,0);
+      const expend = days[date] ? days[date].total_calories : 0;
+      const net = intake - expend;
+      const label = new Date(date + 'T12:00:00').toLocaleDateString([], {weekday:'short', month:'short', day:'numeric'});
+      return '<div class="day-row">' +
+        '<div class="day-head" data-toggle="' + date + '">' +
+          '<div class="day-date">' + label + '</div>' +
+          '<div class="day-nums">' +
+            '<span style="color:var(--intake)">' + intake + '</span>' +
+            (expend ? '<span style="color:var(--expend)">' + expend + '</span>' : '<span class="muted">—</span>') +
+          '</div>' +
+        '</div>' +
+        '<div class="day-meals" id="dm-' + date + '">' +
+          (dayMeals.length ? dayMeals.map(mealRowHtml).join('') : '<div class="empty" style="padding:10px;">No meals logged this day</div>') +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    el.querySelectorAll('[data-toggle]').forEach(h => {
+      h.addEventListener('click', () => {
+        document.getElementById('dm-' + h.getAttribute('data-toggle')).classList.toggle('open');
+      });
+    });
+    el.querySelectorAll('[data-del]').forEach(btn => {
+      btn.addEventListener('click', (ev) => { ev.stopPropagation(); deleteMeal(btn.getAttribute('data-del')); });
+    });
+  }
+
+  /* ---------------- trends view ---------------- */
+  let currentPeriod = 'week';
+
+  function isoWeekKey(d){
+    const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    const dayNum = (date.getUTCDay() + 6) % 7;
+    date.setUTCDate(date.getUTCDate() - dayNum + 3);
+    const firstThursday = new Date(Date.UTC(date.getUTCFullYear(),0,4));
+    const week = 1 + Math.round(((date - firstThursday) / 86400000 - 3 + ((firstThursday.getUTCDay()+6)%7)) / 7);
+    return date.getUTCFullYear() + '-W' + String(week).padStart(2,'0');
+  }
+
+  function bucketKey(dateStr, period){
+    const d = new Date(dateStr + 'T12:00:00');
+    if (period === 'year') return String(d.getFullYear());
+    if (period === 'month') return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+    return isoWeekKey(d);
+  }
+
+  function bucketLabel(key, period){
+    if (period === 'year') return key;
+    if (period === 'month'){
+      const [y,m] = key.split('-');
+      return new Date(y, m-1, 1).toLocaleDateString([], {month:'short', year:'2-digit'});
+    }
+    return key.replace(/^\d{4}-/, '');
+  }
+
+  function computeTrends(period){
+    const meals = getMeals();
+    const days = getOuraDays();
+    const buckets = {}; // key -> {intakeSum, intakeDays:Set, expendSum, expendDays:Set}
+
+    meals.forEach(m => {
+      const k = bucketKey(m.date, period);
+      buckets[k] = buckets[k] || { intakeSum:0, intakeDays:new Set(), expendSum:0, expendDays:new Set() };
+      buckets[k].intakeSum += m.calories;
+      buckets[k].intakeDays.add(m.date);
+    });
+    Object.keys(days).forEach(date => {
+      const k = bucketKey(date, period);
+      buckets[k] = buckets[k] || { intakeSum:0, intakeDays:new Set(), expendSum:0, expendDays:new Set() };
+      buckets[k].expendSum += days[date].total_calories || 0;
+      buckets[k].expendDays.add(date);
+    });
+
+    const keys = Object.keys(buckets).sort().reverse().slice(0, period === 'year' ? 6 : 8);
+    return keys.map(k => {
+      const b = buckets[k];
+      return {
+        label: bucketLabel(k, period),
+        avgIntake: b.intakeDays.size ? Math.round(b.intakeSum / b.intakeDays.size) : 0,
+        avgExpend: b.expendDays.size ? Math.round(b.expendSum / b.expendDays.size) : 0
+      };
+    });
+  }
+
+  function renderTrends(){
+    const data = computeTrends(currentPeriod);
+    const body = document.getElementById('trendsBody');
+    if (data.length === 0){
+      body.innerHTML = '<div class="empty">Not enough data yet for this view.</div>';
+      return;
+    }
+    const maxVal = Math.max(1, ...data.map(d => Math.max(d.avgIntake, d.avgExpend)));
+    body.innerHTML = '<div class="card">' + data.map(d => {
+      const iw = Math.round(100 * d.avgIntake / maxVal);
+      const ew = Math.round(100 * d.avgExpend / maxVal);
+      return '<div class="bar-row">' +
+        '<div class="bar-row-head"><span class="lbl">' + d.label + '</span></div>' +
+        '<div class="bar-track"><div class="bar-fill" style="width:' + iw + '%; background:var(--intake);"></div></div>' +
+        '<div class="bar-nums"><span>In avg ' + (d.avgIntake||'—') + '</span></div>' +
+        '<div class="bar-track" style="margin-top:6px;"><div class="bar-fill" style="width:' + ew + '%; background:var(--expend);"></div></div>' +
+        '<div class="bar-nums"><span>Out avg ' + (d.avgExpend||'—') + '</span></div>' +
+      '</div>';
+    }).join('') + '</div>';
+  }
+
+  document.querySelectorAll('.period-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.period-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      currentPeriod = tab.getAttribute('data-period');
+      renderTrends();
+    });
+  });
+
+  /* ---------------- tab / view nav ---------------- */
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('view-' + tab.getAttribute('data-view')).classList.add('active');
+    });
+  });
+
+  /* ---------------- settings modal ---------------- */
+  const modal = document.getElementById('settingsModal');
+  function openSettings(){
+    const s = getSettings();
+    document.getElementById('claudeKeyInput').value = s.claudeKey || '';
+    document.getElementById('ouraClientIdInput').value = s.ouraClientId || '';
+    updateOuraStatus();
+    modal.classList.add('open');
+  }
+  function updateOuraStatus(){
+    const dot = document.getElementById('ouraDot');
+    const txt = document.getElementById('ouraStatusText');
+    if (ouraTokenValid()){
+      dot.classList.add('ok');
+      const s = getSettings();
+      const daysLeft = Math.max(0, Math.round((s.ouraTokenExpiry - Date.now())/86400000));
+      txt.textContent = 'Oura connected · reconnect in ' + daysLeft + 'd';
+    }else{
+      dot.classList.remove('ok');
+      txt.textContent = 'Oura not connected';
+    }
+  }
+  document.getElementById('settingsBtn').addEventListener('click', openSettings);
+  document.getElementById('closeSettingsBtn').addEventListener('click', () => modal.classList.remove('open'));
+  document.getElementById('saveSettingsBtn').addEventListener('click', () => {
+    const s = getSettings();
+    s.claudeKey = document.getElementById('claudeKeyInput').value.trim();
+    s.ouraClientId = document.getElementById('ouraClientIdInput').value.trim();
+    setSettings(s);
+    toast('Settings saved');
+    modal.classList.remove('open');
+  });
+  document.getElementById('connectOuraBtn').addEventListener('click', connectOura);
+
+  /* ---------------- init ---------------- */
+  function renderAll(){
+    renderToday();
+    renderHistory();
+    renderTrends();
+    updateOuraStatus();
+  }
+
+  handleOuraRedirect();
+  renderAll();
+  if (ouraTokenValid()) syncOura(true);
+
+})();
+</script>
+</body>
+</html>
