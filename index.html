@@ -195,7 +195,7 @@
     animation:spin .7s linear infinite; flex-shrink:0;
   }
   @keyframes spin{to{transform:rotate(360deg);}}
-  #fileInput{display:none;}
+  #fileInput, #fileInputGallery{display:none;}
 </style>
 </head>
 <body>
@@ -379,7 +379,12 @@
     const minDate = new Date();
     minDate.setDate(minDate.getDate() - 400);
     const startDate = (earliest < minDate.toISOString().slice(0,10)) ? earliest : minDate.toISOString().slice(0,10);
-    const endDate = todayISO();
+    // Oura's end_date appears to be an exclusive upper bound, so today's
+    // still-in-progress record is only included if we request one day past today.
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowLocal = new Date(tomorrow.getTime() - tomorrow.getTimezoneOffset() * 60000);
+    const endDate = tomorrowLocal.toISOString().slice(0,10);
 
     try{
       let nextToken = null;
