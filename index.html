@@ -83,9 +83,9 @@
     background:var(--surface); border:1px solid var(--line);
     border-radius:12px; padding:10px; margin-bottom:10px;
   }
-  .meal-thumb{width:52px; height:52px; border-radius:9px; object-fit:cover; background:var(--surface2); flex-shrink:0;}
+  .meal-icon{width:44px; height:44px; border-radius:9px; background:var(--intake-dim); color:var(--intake); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:19px;}
   .meal-info{flex:1; min-width:0;}
-  .meal-name{font-size:14px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .meal-name{font-size:14px; font-weight:500; white-space:normal; overflow-wrap:break-word; line-height:1.4;}
   .meal-sub{font-size:12px; color:var(--muted); margin-top:2px;}
   .meal-cal{font-family:'Space Mono',monospace; font-weight:700; font-size:15px; color:var(--intake); flex-shrink:0;}
   .meal-del{background:none; border:none; color:var(--muted); font-size:18px; padding:4px 6px; flex-shrink:0;}
@@ -116,8 +116,8 @@
   }
   .period-tab.active{background:var(--surface2); color:var(--ink); border-color:var(--intake);}
 
-  /* ---- Floating log buttons ---- */
-  .fab-wrap{position:fixed; bottom:calc(86px + env(safe-area-inset-bottom)); left:0; right:0; display:flex; justify-content:center; gap:10px; pointer-events:none;}
+  /* ---- Floating log button ---- */
+  .fab-wrap{position:fixed; bottom:calc(86px + env(safe-area-inset-bottom)); left:0; right:0; display:flex; justify-content:center; pointer-events:none;}
   .fab{
     pointer-events:auto;
     background:linear-gradient(135deg, var(--intake), #c77f2a);
@@ -125,13 +125,6 @@
     padding:14px 26px; font-size:15px; font-weight:600; font-family:'Space Grotesk',sans-serif;
     display:flex; align-items:center; gap:8px;
     box-shadow:0 8px 22px rgba(226,160,63,.35);
-  }
-  .fab-secondary{
-    pointer-events:auto;
-    background:var(--surface2); color:var(--ink); border:1px solid var(--line);
-    border-radius:50%; width:50px; height:50px; font-size:19px;
-    display:flex; align-items:center; justify-content:center;
-    box-shadow:0 6px 16px rgba(0,0,0,.35);
   }
 
   /* ---- Tab bar ---- */
@@ -195,7 +188,7 @@
     animation:spin .7s linear infinite; flex-shrink:0;
   }
   @keyframes spin{to{transform:rotate(360deg);}}
-  #fileInput, #fileInputGallery{display:none;}
+  #fileInput{display:none;}
 </style>
 </head>
 <body>
@@ -240,10 +233,8 @@
 
 <div class="fab-wrap">
   <button class="fab" id="logBtn">📷 Log a meal</button>
-  <button class="fab-secondary" id="galleryBtn" title="Choose from gallery">🖼️</button>
 </div>
 <input type="file" id="fileInput" accept="image/*" capture="environment">
-<input type="file" id="fileInputGallery" accept="image/*">
 
 <div class="tabbar">
   <button class="tab active" data-view="today"><span class="ico">◎</span>Today</button>
@@ -287,6 +278,21 @@
       <button class="btn btn-primary" id="saveSettingsBtn">Save</button>
       <button class="btn btn-secondary" id="closeSettingsBtn">Close</button>
     </div>
+  </div>
+</div>
+
+<!-- PHOTO REVIEW MODAL -->
+<div class="modal-bg" id="photoModal">
+  <div class="modal">
+    <h2>Add a note (optional)</h2>
+    <img id="photoPreview" style="width:100%; border-radius:12px; margin-bottom:16px; display:block;">
+    <div class="field">
+      <label>Notes for the AI</label>
+      <input type="text" id="photoNoteInput" placeholder="e.g. low fat cheese 17%, no oil used">
+      <div class="hint">Mention things the photo can't show — brands, fat %, dressing/oil used, exact portion size. Leave blank to just estimate from the photo.</div>
+    </div>
+    <button class="btn btn-primary" id="estimateBtn">Estimate calories</button>
+    <button class="btn btn-secondary" id="cancelPhotoBtn">Cancel</button>
   </div>
 </div>
 
@@ -413,10 +419,14 @@
   }
 
   /* ---------------- Claude vision call ---------------- */
-  async function estimateFromPhoto(base64Jpeg){
+  async function estimateFromPhoto(base64Jpeg, note){
     const s = getSettings();
     if (!s.claudeKey){ throw new Error('Add your Claude API key in Settings first'); }
-    const prompt = 'You are a nutrition estimation assistant. Look at this photo of a meal and estimate its nutritional content based on typical portion sizes visible. Respond with ONLY valid JSON, no markdown, no code fences, in exactly this shape: {"items":[{"name":string,"calories":number}],"total_calories":number,"protein_g":number,"carbs_g":number,"fat_g":number,"confidence":"low"|"medium"|"high"}';
+    let prompt = 'You are a nutrition estimation assistant. Look at this photo of a meal and estimate its nutritional content based on typical portion sizes visible.';
+    if (note && note.trim()){
+      prompt += ' The person logging this meal added the following note — treat it as accurate and use it to refine your estimate: "' + note.trim() + '"';
+    }
+    prompt += ' Respond with ONLY valid JSON, no markdown, no code fences, in exactly this shape: {"items":[{"name":string,"calories":number}],"total_calories":number,"protein_g":number,"carbs_g":number,"fat_g":number,"confidence":"low"|"medium"|"high"}';
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -470,54 +480,63 @@
   document.getElementById('logBtn').addEventListener('click', () => {
     document.getElementById('fileInput').click();
   });
-  document.getElementById('galleryBtn').addEventListener('click', () => {
-    document.getElementById('fileInputGallery').click();
-  });
 
-  function handlePhotoFile(file){
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async () => {
-      showLoadingRow(true);
-      try{
-        const fullDataUrl = await resizeImage(reader.result, 1024, 0.72);
-        const thumbDataUrl = await resizeImage(reader.result, 140, 0.55);
-        const base64 = fullDataUrl.split(',')[1];
-        const result = await estimateFromPhoto(base64);
-        const meals = getMeals();
-        meals.push({
-          id: uid(),
-          date: todayISO(),
-          time: new Date().toISOString(),
-          thumb: thumbDataUrl,
-          items: result.items || [],
-          calories: Math.round(result.total_calories || 0),
-          protein: result.protein_g || 0,
-          carbs: result.carbs_g || 0,
-          fat: result.fat_g || 0,
-          confidence: result.confidence || 'medium'
-        });
-        setMeals(meals);
-        toast('Meal logged: ' + Math.round(result.total_calories||0) + ' kcal');
-        renderAll();
-      }catch(err){
-        toast(err.message || 'Could not estimate calories', true);
-      }finally{
-        showLoadingRow(false);
-      }
-    };
-    reader.readAsDataURL(file);
-  }
+  /* pending photo awaiting a note before estimation */
+  let pendingPhoto = null;
+  const photoModal = document.getElementById('photoModal');
 
   document.getElementById('fileInput').addEventListener('change', (e) => {
     const file = e.target.files[0];
     e.target.value = '';
-    handlePhotoFile(file);
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const fullDataUrl = await resizeImage(reader.result, 1024, 0.72);
+      pendingPhoto = { fullDataUrl };
+      document.getElementById('photoPreview').src = fullDataUrl;
+      document.getElementById('photoNoteInput').value = '';
+      photoModal.classList.add('open');
+      setTimeout(() => document.getElementById('photoNoteInput').focus(), 250);
+    };
+    reader.readAsDataURL(file);
   });
-  document.getElementById('fileInputGallery').addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    e.target.value = '';
-    handlePhotoFile(file);
+
+  document.getElementById('cancelPhotoBtn').addEventListener('click', () => {
+    pendingPhoto = null;
+    photoModal.classList.remove('open');
+  });
+
+  document.getElementById('estimateBtn').addEventListener('click', async () => {
+    if (!pendingPhoto) return;
+    const note = document.getElementById('photoNoteInput').value;
+    const photo = pendingPhoto;
+    pendingPhoto = null;
+    photoModal.classList.remove('open');
+    showLoadingRow(true);
+    try{
+      const base64 = photo.fullDataUrl.split(',')[1];
+      const result = await estimateFromPhoto(base64, note);
+      const meals = getMeals();
+      meals.push({
+        id: uid(),
+        date: todayISO(),
+        time: new Date().toISOString(),
+        items: result.items || [],
+        calories: Math.round(result.total_calories || 0),
+        protein: result.protein_g || 0,
+        carbs: result.carbs_g || 0,
+        fat: result.fat_g || 0,
+        confidence: result.confidence || 'medium',
+        note: note ? note.trim() : ''
+      });
+      setMeals(meals);
+      toast('Meal logged: ' + Math.round(result.total_calories||0) + ' kcal');
+      renderAll();
+    }catch(err){
+      toast(err.message || 'Could not estimate calories', true);
+    }finally{
+      showLoadingRow(false);
+    }
   });
 
   function showLoadingRow(on){
@@ -599,10 +618,11 @@
   function mealRowHtml(m){
     const time = new Date(m.time).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
     const names = (m.items||[]).map(i=>i.name).join(', ') || 'Meal';
+    const noteHtml = m.note ? '<div class="meal-sub" style="font-style:italic;">“' + escapeHtml(m.note) + '”</div>' : '';
     return '<div class="meal-row">' +
-      '<img class="meal-thumb" src="' + m.thumb + '">' +
+      '<div class="meal-icon">🍽️</div>' +
       '<div class="meal-info"><div class="meal-name">' + escapeHtml(names) + '</div>' +
-      '<div class="meal-sub">' + time + ' · ' + m.confidence + ' confidence</div></div>' +
+      '<div class="meal-sub">' + time + ' · ' + m.confidence + ' confidence</div>' + noteHtml + '</div>' +
       '<div class="meal-cal mono">' + m.calories + '</div>' +
       '<button class="meal-del" data-del="' + m.id + '">✕</button>' +
       '</div>';
