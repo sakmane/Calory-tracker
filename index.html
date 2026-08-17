@@ -477,6 +477,37 @@
     });
   }
 
+  // Preferred path: decode straight from the File/Blob via createImageBitmap,
+  // which avoids ever holding a full-size base64 string + a full-size decoded
+  // <img> in memory at the same time. Much lighter on high-megapixel camera photos.
+  async function fileToResizedDataUrl(file, maxDim, quality){
+    if (window.createImageBitmap){
+      let bitmap;
+      try{
+        bitmap = await createImageBitmap(file);
+        let w = bitmap.width, h = bitmap.height;
+        if (w > h && w > maxDim){ h = Math.round(h * maxDim / w); w = maxDim; }
+        else if (h > maxDim){ w = Math.round(w * maxDim / h); h = maxDim; }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
+        bitmap.close();
+        return canvas.toDataURL('image/jpeg', quality);
+      }catch(e){
+        if (bitmap) bitmap.close();
+        // fall through to legacy path below
+      }
+    }
+    // Fallback for browsers without createImageBitmap support
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    return resizeImage(dataUrl, maxDim, quality);
+  }
+
   document.getElementById('logBtn').addEventListener('click', () => {
     document.getElementById('fileInput').click();
   });
@@ -485,20 +516,20 @@
   let pendingPhoto = null;
   const photoModal = document.getElementById('photoModal');
 
-  document.getElementById('fileInput').addEventListener('change', (e) => {
+  document.getElementById('fileInput').addEventListener('change', async (e) => {
     const file = e.target.files[0];
     e.target.value = '';
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const fullDataUrl = await resizeImage(reader.result, 1024, 0.72);
+    try{
+      const fullDataUrl = await fileToResizedDataUrl(file, 1024, 0.72);
       pendingPhoto = { fullDataUrl };
       document.getElementById('photoPreview').src = fullDataUrl;
       document.getElementById('photoNoteInput').value = '';
       photoModal.classList.add('open');
       setTimeout(() => document.getElementById('photoNoteInput').focus(), 250);
-    };
-    reader.readAsDataURL(file);
+    }catch(err){
+      toast('Could not load that photo — try again', true);
+    }
   });
 
   document.getElementById('cancelPhotoBtn').addEventListener('click', () => {
